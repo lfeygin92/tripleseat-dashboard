@@ -30,32 +30,54 @@ async function getToken() {
   return tokenCache.token;
 }
 
-// ─── Paginated Fetcher ────────────────────────────────────────────────────────
-// Fetches pages in sequential batches of `concurrency` with a delay between
-// batches — safe within TripleSeat's 10 req/s rate limit.
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-async function fetchAll(endpoint, params = {}, concurrency = 3) {
+// Single GET with exponential-backoff retry on 429
+async function getWithRetry(url, options, maxRetries = 8) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await axios.get(url, options);
+    } catch (err) {
+      const status = err.response?.status;
+      if (status === 429 && attempt < maxRetries) {
+        // Honour Retry-After header if present, else exponential back-off
+        const retryAfter = parseInt(err.response?.headers?.['retry-after'] || '0', 10);
+        const wait = retryAfter > 0
+          ? retryAfter * 1000
+          : Math.min(2000 * Math.pow(2, attempt), 60000); // 2s, 4s, 8s … 60s cap
+        console.log(`  ⚠️  429 on ${url} — waiting ${wait / 1000}s (attempt ${attempt + 1}/${maxRetries})`);
+        await sleep(wait);
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
+// ─── Paginated Fetcher ────────────────────────────────────────────────────────
+// Fetches one page at a time (concurrency=1) with a 350ms pause between pages.
+// Handles 429 via getWithRetry. Safe for TripleSeat's rate limits regardless
+// of account tier.
+async function fetchAll(endpoint, params = {}) {
   const token   = await getToken();
   const headers = { Authorization: `Bearer ${token}` };
 
-  const get = p => axios.get(`${TS_BASE}/${endpoint}.json`, {
+  const get = p => getWithRetry(`${TS_BASE}/${endpoint}.json`, {
     headers, params: { ...params, page: p, per_page: 100 },
   }).then(r => r.data.results || []);
 
-  const first = await axios.get(`${TS_BASE}/${endpoint}.json`, {
+  const first = await getWithRetry(`${TS_BASE}/${endpoint}.json`, {
     headers, params: { ...params, page: 1, per_page: 100 },
   });
   const totalPages = first.data.total_pages || 1;
   let results = first.data.results || [];
-  console.log(`  ${endpoint}: ${totalPages} pages…`);
+  console.log(`  ${endpoint}: ${totalPages} page(s)…`);
 
-  for (let start = 2; start <= totalPages; start += concurrency) {
-    const batch = [];
-    for (let p = start; p < start + concurrency && p <= totalPages; p++) batch.push(get(p));
-    const pages = await Promise.all(batch);
-    pages.forEach(p => { results = results.concat(p); });
-    if (start + concurrency <= totalPages) await sleep(500);
+  for (let p = 2; p <= totalPages; p++) {
+    await sleep(350); // ~3 req/s — well within TripleSeat's limit
+    results = results.concat(await get(p));
+    if (p % 20 === 0) console.log(`    ${endpoint}: page ${p}/${totalPages}`);
   }
   return results;
 }
