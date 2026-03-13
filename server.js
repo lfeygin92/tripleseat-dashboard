@@ -8,7 +8,7 @@ const fs      = require('fs');
 const app  = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'docs')));
 
 const TS_BASE   = 'https://api.tripleseat.com/v1';
 const PORT      = process.env.PORT || 3000;

@@ -13,7 +13,7 @@ const fs    = require('fs');
 const path  = require('path');
 
 const TS_BASE = 'https://api.tripleseat.com/v1';
-const OUT     = path.join(__dirname, '..', 'public', 'data.json');
+const OUT     = path.join(__dirname, '..', 'docs', 'data.json');
 
 // ─── OAuth Token ──────────────────────────────────────────────────────────────
 let tokenCache = { token: null, expiresAt: 0 };
