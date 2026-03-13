@@ -1,0 +1,45 @@
+name: Refresh TripleSeat Data
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'   # Every 6 hours (midnight, 6am, noon, 6pm UTC)
+  workflow_dispatch:           # Manual trigger from the Actions tab
+  push:
+    branches: [main]
+    paths: ['scripts/build-data.js']
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fetch TripleSeat data
+        run: node scripts/build-data.js
+        env:
+          TRIPLESEAT_CLIENT_ID:     ${{ secrets.TRIPLESEAT_CLIENT_ID }}
+          TRIPLESEAT_CLIENT_SECRET: ${{ secrets.TRIPLESEAT_CLIENT_SECRET }}
+          BUDGET_TARGETS_2025:      ${{ vars.BUDGET_TARGETS_2025 }}
+          BUDGET_TARGETS_2026:      ${{ vars.BUDGET_TARGETS_2026 }}
+          BUDGET_TARGETS_2027:      ${{ vars.BUDGET_TARGETS_2027 }}
+
+      - name: Commit updated data.json
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/data.json
+          git diff --staged --quiet && echo "No changes to commit" || \
+            (git commit -m "chore: refresh TripleSeat data [skip ci]" && git push)

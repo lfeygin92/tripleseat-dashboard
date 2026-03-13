@@ -229,7 +229,7 @@
   <div class="logo">The Oberon Group <span>/ Sales Dashboard</span></div>
   <div class="header-right">
     <span id="lastUpdated">Loading…</span>
-    <button class="refresh-btn" id="refreshBtn" onclick="loadData(true)">↻ Refresh</button>
+    <button class="refresh-btn" id="refreshBtn" onclick="window.open('https://github.com/lfeygin92/tripleseat-dashboard/actions/workflows/refresh-data.yml','_blank')" title="Trigger a data refresh via GitHub Actions">↻ Refresh Data</button>
   </div>
 </header>
 
@@ -378,10 +378,9 @@ let rawData = null;
 const charts = {};
 
 // ── Fetch data ─────────────────────────────────────────────────────────────────
-async function loadData(force = false) {
+async function loadData() {
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true;
-  btn.textContent = '↻ Loading…';
 
   // Only show full-screen loader if we have no data yet
   if (!rawData) {
@@ -391,8 +390,7 @@ async function loadData(force = false) {
   document.getElementById('error-msg').style.display = 'none';
 
   try {
-    const url = force ? '/api/data?refresh=true' : '/api/data';
-    const resp = await fetch(url);
+    const resp = await fetch('./data.json?_=' + Date.now());
     if (!resp.ok) throw new Error(`Server error ${resp.status}`);
     rawData = await resp.json();
     if (rawData.error) throw new Error(rawData.error + (rawData.detail ? ' — ' + rawData.detail : ''));
@@ -409,19 +407,18 @@ async function loadData(force = false) {
 
     applyFilters();
     const fetchedAt = rawData._meta?.fetchedAt;
-    const ageMin = fetchedAt ? Math.round((Date.now() - fetchedAt) / 60000) : 0;
+    const dateStr = fetchedAt ? new Date(fetchedAt).toLocaleString() : 'unknown';
     document.getElementById('lastUpdated').textContent =
-      `Data from ${ageMin < 2 ? 'just now' : ageMin + ' min ago'} · ${rawData.events?.length?.toLocaleString() || 0} events`;
+      `Updated ${dateStr} · ${rawData.events?.length?.toLocaleString() || 0} events`;
     document.getElementById('loading').style.display = 'none';
     document.getElementById('mainContent').style.display = 'block';
   } catch (e) {
     document.getElementById('loading').style.display = 'none';
     const em = document.getElementById('error-msg');
     em.style.display = 'block';
-    em.textContent = '⚠️ ' + e.message + ' — Check your .env credentials and that the server is running.';
+    em.textContent = '⚠️ ' + e.message + ' — Data may not have been built yet. Check the GitHub Actions tab to trigger a refresh.';
   }
   btn.disabled = false;
-  btn.textContent = '↻ Refresh';
 }
 
 // ── Apply filters and redraw ───────────────────────────────────────────────────
