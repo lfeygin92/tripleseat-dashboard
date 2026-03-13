@@ -95,25 +95,18 @@ async function main() {
     process.exit(1);
   }
 
-  // Fetch current-year data only — small page count, fast run.
-  // show_financial=true makes TripleSeat very slow (11s/page), so we limit to
-  // just the current year to keep the job under 10 minutes.
-  const now      = new Date();
-  const currYr   = now.getFullYear();
-  const startDate = `01/01/${currYr}`;    // MM/DD/YYYY — TripleSeat format
-  const endDate   = `12/31/${currYr}`;
-  console.log(`🔄 Fetching TripleSeat data for ${currYr} (${startDate} – ${endDate})…`);
+  // NOTE: TripleSeat's /events.json list endpoint does not support date range
+  // filtering — all date params are silently ignored. We fetch all records.
+  // With show_financial=true each page takes ~11s; 260 pages ≈ 48 min.
+  // The workflow timeout is set to 70 min to accommodate this.
+  const now    = new Date();
+  const currYr = now.getFullYear();
+  console.log(`🔄 Fetching all TripleSeat data (current year: ${currYr})…`);
   const t0 = Date.now();
 
-  // Events: current year only with financials (small page count → fast)
-  const eventsRaw   = await fetchAll('events', {
-    show_financial:    true,
-    event_start_date:  startDate,
-    event_end_date:    endDate,
-  });
-  // Leads & bookings: current year only
-  const leadsRaw    = await fetchAll('leads',    { event_start_date: startDate, event_end_date: endDate });
-  const bookingsRaw = await fetchAll('bookings', { event_start_date: startDate, event_end_date: endDate });
+  const eventsRaw   = await fetchAll('events', { show_financial: true });
+  const leadsRaw    = await fetchAll('leads');
+  const bookingsRaw = await fetchAll('bookings');
 
   console.log(`✅ ${eventsRaw.length} events, ${leadsRaw.length} leads, ${bookingsRaw.length} bookings in ${Math.round((Date.now()-t0)/1000)}s`);
 
@@ -215,12 +208,12 @@ async function main() {
   });
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
-  const currYr  = String(new Date().getFullYear());
-  const evtYear = events.filter(e => e.date?.startsWith(currYr));
-  const ldsYear = leads.filter(l => l.submitted?.includes(currYr));
+  const currYrStr = String(currYr);
+  const evtYear = events.filter(e => e.date?.startsWith(currYrStr));
+  const ldsYear = leads.filter(l => l.submitted?.includes(currYrStr));
 
   const kpis = {
-    currentYear:      currYr,
+    currentYear:      currYrStr,
     totalPipeline:    evtYear.reduce((s,e) => s + e.grand_total, 0),
     closedRevenue:    evtYear.filter(e=>e.status==='CLOSED').reduce((s,e)=>s+e.grand_total,0),
     definiteRevenue:  evtYear.filter(e=>e.status==='DEFINITE').reduce((s,e)=>s+e.grand_total,0),
@@ -245,7 +238,7 @@ async function main() {
   leads.forEach(l => { leadsByStatus[l.status] = (leadsByStatus[l.status] || 0) + 1; });
 
   const topEvents = [...events]
-    .filter(e => e.status==='CLOSED' && e.date?.startsWith(currYr))
+    .filter(e => e.status==='CLOSED' && e.date?.startsWith(currYrStr))
     .sort((a,b) => b.grand_total - a.grand_total)
     .slice(0, 10);
 
