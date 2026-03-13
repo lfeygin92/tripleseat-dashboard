@@ -95,18 +95,25 @@ async function main() {
     process.exit(1);
   }
 
-  // Only fetch data from START_YEAR onwards to limit page count.
-  // TripleSeat accepts MM/DD/YYYY or ISO 8601 for date filters.
-  // Adjust DATA_START_YEAR env var if you need older historical data.
-  const START_YEAR = process.env.DATA_START_YEAR || '2024';
-  const startDate  = `01/01/${START_YEAR}`;  // MM/DD/YYYY format for TripleSeat
-  console.log(`🔄 Fetching TripleSeat data from ${startDate} onwards…`);
+  // Fetch current-year data only — small page count, fast run.
+  // show_financial=true makes TripleSeat very slow (11s/page), so we limit to
+  // just the current year to keep the job under 10 minutes.
+  const now      = new Date();
+  const currYr   = now.getFullYear();
+  const startDate = `01/01/${currYr}`;    // MM/DD/YYYY — TripleSeat format
+  const endDate   = `12/31/${currYr}`;
+  console.log(`🔄 Fetching TripleSeat data for ${currYr} (${startDate} – ${endDate})…`);
   const t0 = Date.now();
 
-  // Fetch sequentially with TripleSeat date filter parameters (MM/DD/YYYY format)
-  const eventsRaw   = await fetchAll('events',   { show_financial: true, event_start_date: startDate });
-  const leadsRaw    = await fetchAll('leads',     { event_start_date: startDate });
-  const bookingsRaw = await fetchAll('bookings',  { event_start_date: startDate });
+  // Events: current year only with financials (small page count → fast)
+  const eventsRaw   = await fetchAll('events', {
+    show_financial:    true,
+    event_start_date:  startDate,
+    event_end_date:    endDate,
+  });
+  // Leads & bookings: current year only
+  const leadsRaw    = await fetchAll('leads',    { event_start_date: startDate, event_end_date: endDate });
+  const bookingsRaw = await fetchAll('bookings', { event_start_date: startDate, event_end_date: endDate });
 
   console.log(`✅ ${eventsRaw.length} events, ${leadsRaw.length} leads, ${bookingsRaw.length} bookings in ${Math.round((Date.now()-t0)/1000)}s`);
 
