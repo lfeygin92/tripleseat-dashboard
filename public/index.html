@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sales Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    /* ── Reset & Base ──────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3348;
+      --text: #e8eaf0;
+      --text-muted: #8891a9;
+      --accent: #6c63ff;
+      --closed: #f5a623;
+      --definite: #4a90d9;
+      --prospect: #7ed321;
+      --tentative: #e05454;
+      --budget: #c0c0c0;
+      --radius: 12px;
+      --shadow: 0 4px 24px rgba(0,0,0,.35);
+    }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ───────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 28px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo { font-size: 1.2rem; font-weight: 700; letter-spacing: -.5px; }
+    .logo span { color: var(--accent); }
+    .header-right { display: flex; align-items: center; gap: 14px; }
+    #lastUpdated { font-size: .8rem; color: var(--text-muted); }
+    button.refresh-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 18px;
+      font-size: .85rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: opacity .2s;
+    }
+    button.refresh-btn:hover { opacity: .85; }
+    button.refresh-btn:disabled { opacity: .5; cursor: default; }
+
+    /* ── Filter Bar ───────────────────────────────────────── */
+    .filter-bar {
+      display: flex;
+      gap: 12px;
+      padding: 14px 28px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .filter-bar label { font-size: .8rem; color: var(--text-muted); }
+    .filter-bar select, .filter-bar input {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: .85rem;
+      cursor: pointer;
+    }
+    .filter-group { display: flex; flex-direction: column; gap: 4px; }
+
+    /* ── Main Layout ──────────────────────────────────────── */
+    main { padding: 24px 28px; max-width: 1600px; margin: 0 auto; }
+
+    /* ── KPI Cards ────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+    .kpi-card .label { font-size: .75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+    .kpi-card .value { font-size: 1.6rem; font-weight: 700; line-height: 1; }
+    .kpi-card .sub { font-size: .78rem; color: var(--text-muted); margin-top: 6px; }
+    .kpi-card.accent { border-color: var(--accent); }
+    .kpi-card.closed { border-color: var(--closed); }
+
+    /* ── Chart Grid ───────────────────────────────────────── */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+    .charts-row {
+      display: grid;
+      gap: 20px;
+    }
+    .charts-row.two { grid-template-columns: 1fr 1fr; }
+    .charts-row.three { grid-template-columns: 2fr 1fr 1fr; }
+
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      box-shadow: var(--shadow);
+    }
+    .chart-card h3 {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 18px;
+    }
+    .chart-card .chart-wrap { position: relative; height: 300px; }
+    .chart-card .chart-wrap.tall { height: 380px; }
+
+    /* ── Table ────────────────────────────────────────────── */
+    .table-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      box-shadow: var(--shadow);
+      overflow: auto;
+    }
+    .table-card h3 {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 16px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+    thead th { text-align: left; padding: 8px 12px; color: var(--text-muted); font-weight: 600; font-size: .75rem; text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid var(--border); }
+    tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    tbody tr:hover { background: var(--surface2); }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+    }
+    .badge.CLOSED { background: rgba(245,166,35,.18); color: var(--closed); }
+    .badge.DEFINITE { background: rgba(74,144,217,.18); color: var(--definite); }
+    .badge.PROSPECT { background: rgba(126,211,33,.18); color: var(--prospect); }
+    .badge.TENTATIVE { background: rgba(224,84,84,.18); color: var(--tentative); }
+    .badge.LOST { background: rgba(144,144,144,.15); color: #888; }
+
+    /* ── Loading / Error ──────────────────────────────────── */
+    #loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      gap: 16px;
+    }
+    .spinner {
+      width: 44px; height: 44px;
+      border: 4px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #error-msg {
+      display: none;
+      background: rgba(224,84,84,.12);
+      border: 1px solid var(--tentative);
+      color: var(--tentative);
+      padding: 18px 24px;
+      border-radius: var(--radius);
+      margin: 24px 28px;
+      font-size: .9rem;
+    }
+
+    /* ── Legend Pills ─────────────────────────────────────── */
+    .legend-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+    .legend-pill { display: flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--text-muted); }
+    .legend-pill .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* ── Section Title ────────────────────────────────────── */
+    .section-title {
+      font-size: .75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    @media (max-width: 900px) {
+      .charts-row.two, .charts-row.three { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">The Oberon Group <span>/ Sales Dashboard</span></div>
+  <div class="header-right">
+    <span id="lastUpdated">Loading…</span>
+    <button class="refresh-btn" id="refreshBtn" onclick="loadData(true)">↻ Refresh</button>
+  </div>
+</header>
+
+<div class="filter-bar">
+  <div class="filter-group">
+    <label>Year</label>
+    <select id="filterYear" onchange="applyFilters()">
+      <option value="all">All Years</option>
+      <option value="2025">2025</option>
+      <option value="2026" selected>2026</option>
+      <option value="2027">2027</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Location</label>
+    <select id="filterLocation" onchange="applyFilters()">
+      <option value="all">All Locations</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Status</label>
+    <select id="filterStatus" onchange="applyFilters()">
+      <option value="all">All Statuses</option>
+      <option value="CLOSED">Closed</option>
+      <option value="DEFINITE">Definite</option>
+      <option value="PROSPECT">Prospect</option>
+      <option value="TENTATIVE">Tentative</option>
+      <option value="LOST">Lost</option>
+    </select>
+  </div>
+</div>
+
+<div id="error-msg"></div>
+<div id="loading"><div class="spinner"></div><div style="color:var(--text-muted)">Fetching live data from TripleSeat…</div></div>
+
+<main id="mainContent" style="display:none">
+
+  <!-- KPI Row -->
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <!-- Chart 1: Monthly Revenue by Status -->
+  <div class="charts-grid">
+
+    <div class="chart-card">
+      <h3>Monthly Revenue by Status</h3>
+      <div class="legend-row">
+        <div class="legend-pill"><div class="dot" style="background:var(--budget)"></div>Budget</div>
+        <div class="legend-pill"><div class="dot" style="background:var(--tentative)"></div>Tentative</div>
+        <div class="legend-pill"><div class="dot" style="background:var(--prospect)"></div>Prospect</div>
+        <div class="legend-pill"><div class="dot" style="background:var(--definite)"></div>Definite</div>
+        <div class="legend-pill"><div class="dot" style="background:var(--closed)"></div>Closed</div>
+      </div>
+      <div class="chart-wrap tall"><canvas id="monthlyChart"></canvas></div>
+    </div>
+
+    <!-- Row: Annual + Location -->
+    <div class="charts-row two">
+      <div class="chart-card">
+        <h3>Annual Revenue by Status</h3>
+        <div class="chart-wrap"><canvas id="annualChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Revenue by Location</h3>
+        <div class="chart-wrap"><canvas id="locationChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Row: Leads + Payments -->
+    <div class="charts-row three">
+      <div class="chart-card">
+        <h3>Lead Volume by Month (Current Year)</h3>
+        <div class="chart-wrap"><canvas id="leadsMonthlyChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Lead Status Breakdown</h3>
+        <div class="chart-wrap"><canvas id="leadsStatusChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Payment Methods</h3>
+        <div class="chart-wrap"><canvas id="paymentMethodChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Owner Revenue Breakdown -->
+    <div class="chart-card">
+      <h3>Revenue by Owner (Current Year)</h3>
+      <div class="chart-wrap"><canvas id="ownerChart"></canvas></div>
+    </div>
+
+    <!-- Top Events Table -->
+    <div class="table-card">
+      <h3>Top Closed Events by Revenue (Current Year)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Event</th>
+            <th>Date</th>
+            <th>Location</th>
+            <th>Guests</th>
+            <th>Revenue</th>
+          </tr>
+        </thead>
+        <tbody id="topEventsTable"></tbody>
+      </table>
+    </div>
+
+    <!-- All Events Table -->
+    <div class="table-card">
+      <h3>All Events</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Location</th>
+            <th>Type</th>
+            <th>Guests</th>
+            <th>Owner</th>
+            <th>Grand Total</th>
+            <th>Paid</th>
+            <th>Balance Due</th>
+          </tr>
+        </thead>
+        <tbody id="allEventsTable"></tbody>
+      </table>
+    </div>
+
+  </div>
+</main>
+
+<script>
+// ── Color palette ──────────────────────────────────────────────────────────────
+const COLORS = {
+  BUDGET:    '#c0c0c0',
+  CLOSED:    '#f5a623',
+  DEFINITE:  '#4a90d9',
+  PROSPECT:  '#7ed321',
+  TENTATIVE: '#e05454',
+};
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let rawData = null;
+const charts = {};
+
+// ── Fetch data ─────────────────────────────────────────────────────────────────
+async function loadData(force = false) {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.textContent = '↻ Loading…';
+
+  // Only show full-screen loader if we have no data yet
+  if (!rawData) {
+    document.getElementById('loading').style.display = 'flex';
+    document.getElementById('mainContent').style.display = 'none';
+  }
+  document.getElementById('error-msg').style.display = 'none';
+
+  try {
+    const url = force ? '/api/data?refresh=true' : '/api/data';
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`Server error ${resp.status}`);
+    rawData = await resp.json();
+    if (rawData.error) throw new Error(rawData.error + (rawData.detail ? ' — ' + rawData.detail : ''));
+
+    // Populate location filter
+    const locations = Object.keys(rawData.locationPivot).sort();
+    const locSel = document.getElementById('filterLocation');
+    locSel.innerHTML = '<option value="all">All Locations</option>';
+    locations.forEach(l => {
+      const o = document.createElement('option');
+      o.value = l; o.textContent = l;
+      locSel.appendChild(o);
+    });
+
+    applyFilters();
+    const fetchedAt = rawData._meta?.fetchedAt;
+    const ageMin = fetchedAt ? Math.round((Date.now() - fetchedAt) / 60000) : 0;
+    document.getElementById('lastUpdated').textContent =
+      `Data from ${ageMin < 2 ? 'just now' : ageMin + ' min ago'} · ${rawData.events?.length?.toLocaleString() || 0} events`;
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'block';
+  } catch (e) {
+    document.getElementById('loading').style.display = 'none';
+    const em = document.getElementById('error-msg');
+    em.style.display = 'block';
+    em.textContent = '⚠️ ' + e.message + ' — Check your .env credentials and that the server is running.';
+  }
+  btn.disabled = false;
+  btn.textContent = '↻ Refresh';
+}
+
+// ── Apply filters and redraw ───────────────────────────────────────────────────
+function applyFilters() {
+  if (!rawData) return;
+  const yr = document.getElementById('filterYear').value;
+  const loc = document.getElementById('filterLocation').value;
+  const st = document.getElementById('filterStatus').value;
+
+  // Filter events
+  let events = rawData.events;
+  if (yr !== 'all') events = events.filter(e => e.date && String(new Date(e.date).getFullYear()) === yr);
+  if (loc !== 'all') events = events.filter(e => e.location === loc);
+  if (st !== 'all') events = events.filter(e => e.status === st);
+
+  renderKPIs(events, rawData.kpis);
+  renderMonthlyChart(rawData.monthlyPivot, yr, loc);
+  renderAnnualChart(rawData.annualPivot);
+  renderLocationChart(rawData.locationPivot, yr);
+  renderLeadsMonthly(rawData.leadsMonthly);
+  renderLeadsStatus(rawData.leadsByStatus);
+  renderOwnerChart(rawData.ownerPivot, yr);
+  renderTopEvents(rawData.topEvents);
+  renderAllEvents(events);
+}
+
+// ── KPI Cards ──────────────────────────────────────────────────────────────────
+function renderKPIs(events, globalKpis) {
+  const pipeline = events.reduce((s, e) => s + e.grand_total, 0);
+  const closed = events.filter(e => e.status === 'CLOSED').reduce((s, e) => s + e.grand_total, 0);
+  const definite = events.filter(e => e.status === 'DEFINITE').reduce((s, e) => s + e.grand_total, 0);
+  const prospect = events.filter(e => e.status === 'PROSPECT').reduce((s, e) => s + e.grand_total, 0);
+  const tentative = events.filter(e => e.status === 'TENTATIVE').reduce((s, e) => s + e.grand_total, 0);
+  const closedCount = events.filter(e => e.status === 'CLOSED').length;
+  const totalCount = events.length;
+
+  const kpis = [
+    { label: 'Total Pipeline', value: fmt(pipeline), sub: `${totalCount} events`, cls: 'accent' },
+    { label: 'Closed Revenue', value: fmt(closed), sub: `${closedCount} events closed`, cls: 'closed' },
+    { label: 'Definite', value: fmt(definite), sub: '' },
+    { label: 'Prospect', value: fmt(prospect), sub: '' },
+    { label: 'Tentative', value: fmt(tentative), sub: '' },
+    { label: 'Leads (YTD)', value: globalKpis.totalLeads, sub: `${globalKpis.conversionRate}% converted` },
+    { label: 'Collected', value: fmt(globalKpis.totalCollected), sub: 'All-time paid' },
+    { label: 'Outstanding', value: fmt(globalKpis.totalOutstanding), sub: 'Awaiting payment' },
+  ];
+
+  document.getElementById('kpiGrid').innerHTML = kpis.map(k => `
+    <div class="kpi-card ${k.cls || ''}">
+      <div class="label">${k.label}</div>
+      <div class="value">${k.value}</div>
+      ${k.sub ? `<div class="sub">${k.sub}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+// ── Monthly stacked bar chart ──────────────────────────────────────────────────
+function renderMonthlyChart(pivot, filterYear, filterLoc) {
+  // Build sorted month keys
+  let keys = Object.keys(pivot).sort();
+  if (filterYear !== 'all') keys = keys.filter(k => k.startsWith(filterYear));
+
+  const labels = keys.map(k => {
+    const [yr, mo] = k.split('-');
+    return `${yr}-${MONTHS[parseInt(mo) - 1]}`;
+  });
+
+  const mkDataset = (status, color, stack) => ({
+    label: status,
+    data: keys.map(k => Math.round((pivot[k]?.[status] || 0))),
+    backgroundColor: color + (status === 'BUDGET' ? '60' : 'cc'),
+    borderColor: color,
+    borderWidth: status === 'BUDGET' ? 2 : 0,
+    stack: status === 'BUDGET' ? 'budget' : 'actual',
+    type: status === 'BUDGET' ? 'line' : 'bar',
+    fill: false,
+    tension: 0.3,
+    pointRadius: 3,
+    order: status === 'BUDGET' ? 0 : 1,
+  });
+
+  const datasets = [
+    mkDataset('BUDGET', COLORS.BUDGET),
+    mkDataset('TENTATIVE', COLORS.TENTATIVE),
+    mkDataset('PROSPECT', COLORS.PROSPECT),
+    mkDataset('DEFINITE', COLORS.DEFINITE),
+    mkDataset('CLOSED', COLORS.CLOSED),
+  ];
+
+  renderChart('monthlyChart', { type: 'bar', data: { labels, datasets },
+    options: {
+      ...baseOpts(),
+      scales: {
+        x: { ...axisStyle(), stacked: true },
+        y: { ...axisStyle(), stacked: true, ticks: { callback: v => '$' + shortNum(v), color: '#8891a9' } },
+      },
+    }
+  });
+}
+
+// ── Annual grouped bar ─────────────────────────────────────────────────────────
+function renderAnnualChart(pivot) {
+  const years = Object.keys(pivot).sort();
+  const datasets = ['BUDGET','CLOSED','DEFINITE','PROSPECT','TENTATIVE'].map(s => ({
+    label: s,
+    data: years.map(y => Math.round(pivot[y]?.[s] || 0)),
+    backgroundColor: COLORS[s] + 'cc',
+    borderColor: COLORS[s],
+    borderWidth: 1,
+  }));
+  renderChart('annualChart', { type: 'bar', data: { labels: years, datasets },
+    options: { ...baseOpts(), scales: { x: axisStyle(), y: { ...axisStyle(), ticks: { callback: v => '$' + shortNum(v), color: '#8891a9' } } } }
+  });
+}
+
+// ── Location doughnut ──────────────────────────────────────────────────────────
+function renderLocationChart(locationPivot, filterYear) {
+  const totals = {};
+  Object.entries(locationPivot).forEach(([loc, months]) => {
+    Object.entries(months).forEach(([key, vals]) => {
+      if (filterYear !== 'all' && !key.startsWith(filterYear)) return;
+      totals[loc] = (totals[loc] || 0) + vals.CLOSED + vals.DEFINITE + vals.PROSPECT + vals.TENTATIVE;
+    });
+  });
+  const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  const palette = ['#6c63ff','#f5a623','#4a90d9','#7ed321','#e05454','#c0c0c0','#a78bfa','#34d399'];
+  renderChart('locationChart', {
+    type: 'doughnut',
+    data: {
+      labels: sorted.map(([l]) => l),
+      datasets: [{ data: sorted.map(([,v]) => Math.round(v)), backgroundColor: palette, borderWidth: 0 }]
+    },
+    options: {
+      ...baseOpts(),
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#8891a9', font: { size: 11 }, boxWidth: 12 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${fmt(ctx.raw)}` } }
+      }
+    }
+  });
+}
+
+// ── Leads monthly bar ──────────────────────────────────────────────────────────
+function renderLeadsMonthly(leadsMonthly) {
+  renderChart('leadsMonthlyChart', {
+    type: 'bar',
+    data: { labels: MONTHS, datasets: [{ label: 'Leads', data: leadsMonthly, backgroundColor: '#6c63ffcc', borderColor: '#6c63ff', borderWidth: 1 }] },
+    options: { ...baseOpts(), scales: { x: axisStyle(), y: { ...axisStyle(), ticks: { color: '#8891a9' } } } }
+  });
+}
+
+// ── Leads status doughnut ──────────────────────────────────────────────────────
+function renderLeadsStatus(leadsByStatus) {
+  const entries = Object.entries(leadsByStatus).sort((a, b) => b[1] - a[1]);
+  const palette = ['#6c63ff','#f5a623','#4a90d9','#7ed321','#e05454','#c0c0c0'];
+  renderChart('leadsStatusChart', {
+    type: 'doughnut',
+    data: { labels: entries.map(([s]) => s), datasets: [{ data: entries.map(([,v]) => v), backgroundColor: palette, borderWidth: 0 }] },
+    options: { ...baseOpts(), plugins: { legend: { position: 'bottom', labels: { color: '#8891a9', font: { size: 11 }, boxWidth: 12 } } } }
+  });
+}
+
+// ── Owner horizontal bar ──────────────────────────────────────────────────────
+function renderOwnerChart(ownerPivot, filterYear) {
+  // Sum up revenue per owner across statuses, filtered by year if needed
+  const totals = {};
+  Object.entries(ownerPivot || {}).forEach(([owner, statuses]) => {
+    totals[owner] = (statuses.CLOSED || 0) + (statuses.DEFINITE || 0) + (statuses.PROSPECT || 0) + (statuses.TENTATIVE || 0);
+  });
+  // For year filtering we'd need owner data per year - use events array if needed
+  // Sort and take top 10
+  const sorted = Object.entries(totals).sort((a,b) => b[1]-a[1]).slice(0, 10);
+  renderChart('ownerChart', {
+    type: 'bar',
+    data: {
+      labels: sorted.map(([o]) => o),
+      datasets: [{ label: 'Total Revenue', data: sorted.map(([,v]) => Math.round(v)),
+        backgroundColor: '#6c63ffcc', borderColor: '#6c63ff', borderWidth: 1 }]
+    },
+    options: { ...baseOpts(), indexAxis: 'y',
+      scales: { x: { ...axisStyle(), ticks: { callback: v => '$'+shortNum(v), color: '#8891a9' } }, y: axisStyle() } }
+  });
+}
+
+// ── Payment methods doughnut ───────────────────────────────────────────────────
+function renderPaymentMethods(methods) {
+  const entries = Object.entries(methods).sort((a, b) => b[1] - a[1]);
+  const palette = ['#4a90d9','#f5a623','#7ed321','#e05454','#6c63ff'];
+  renderChart('paymentMethodChart', {
+    type: 'doughnut',
+    data: { labels: entries.map(([m]) => m), datasets: [{ data: entries.map(([,v]) => Math.round(v)), backgroundColor: palette, borderWidth: 0 }] },
+    options: {
+      ...baseOpts(),
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#8891a9', font: { size: 11 }, boxWidth: 12 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${fmt(ctx.raw)}` } }
+      }
+    }
+  });
+}
+
+// ── Top events table ───────────────────────────────────────────────────────────
+function renderTopEvents(top) {
+  document.getElementById('topEventsTable').innerHTML = top.map((e, i) => `
+    <tr>
+      <td style="color:var(--text-muted)">${i + 1}</td>
+      <td>${e.name}</td>
+      <td style="color:var(--text-muted)">${fmtDate(e.date)}</td>
+      <td>${e.location}</td>
+      <td style="color:var(--text-muted)">${e.guests || '—'}</td>
+      <td style="font-weight:700;color:var(--closed)">${fmt(e.grand_total)}</td>
+    </tr>
+  `).join('');
+}
+
+// ── All events table ───────────────────────────────────────────────────────────
+function renderAllEvents(events) {
+  const sorted = [...events].sort((a, b) => new Date(b.date) - new Date(a.date));
+  document.getElementById('allEventsTable').innerHTML = sorted.slice(0, 200).map(e => `
+    <tr>
+      <td>${e.name}</td>
+      <td style="color:var(--text-muted)">${fmtDate(e.date)}</td>
+      <td><span class="badge ${e.status}">${e.status}</span></td>
+      <td>${e.location}</td>
+      <td style="color:var(--text-muted)">${e.event_style || '—'}</td>
+      <td style="color:var(--text-muted)">${e.guests || '—'}</td>
+      <td style="color:var(--text-muted)">${e.owner}</td>
+      <td style="font-weight:600">${fmt(e.grand_total)}</td>
+      <td style="color:var(--prospect)">${fmt(e.paid_amount)}</td>
+      <td style="color:${e.balance_due > 0 ? 'var(--tentative)' : 'var(--text-muted)'}">${fmt(e.balance_due)}</td>
+    </tr>
+  `).join('');
+}
+
+// ── Chart helper ──────────────────────────────────────────────────────────────
+function renderChart(id, config) {
+  if (charts[id]) charts[id].destroy();
+  const ctx = document.getElementById(id).getContext('2d');
+  charts[id] = new Chart(ctx, config);
+}
+
+function baseOpts() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#22263a',
+        borderColor: '#2e3348',
+        borderWidth: 1,
+        titleColor: '#e8eaf0',
+        bodyColor: '#8891a9',
+        callbacks: {
+          label: ctx => ` ${ctx.dataset.label}: ${typeof ctx.raw === 'number' ? fmt(ctx.raw) : ctx.raw}`
+        }
+      }
+    },
+    animation: { duration: 400 }
+  };
+}
+
+function axisStyle() {
+  return { grid: { color: '#2e3348' }, ticks: { color: '#8891a9' } };
+}
+
+// ── Formatters ─────────────────────────────────────────────────────────────────
+function fmt(n) {
+  if (!n && n !== 0) return '—';
+  return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function shortNum(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+  return n;
+}
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────────
+loadData();
+</script>
+</body>
+</html>

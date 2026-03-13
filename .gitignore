@@ -1,0 +1,20 @@
+# Environment variables — NEVER commit this file
+.env
+
+# Server-side data cache
+.data_cache.json
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
