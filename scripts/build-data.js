@@ -56,9 +56,8 @@ async function getWithRetry(url, options, maxRetries = 8) {
 }
 
 // ─── Paginated Fetcher ────────────────────────────────────────────────────────
-// Fetches one page at a time (concurrency=1) with a 350ms pause between pages.
-// Handles 429 via getWithRetry. Safe for TripleSeat's rate limits regardless
-// of account tier.
+// Fetches one page at a time with a 600ms pause between requests (~1.6 req/s).
+// Handles 429 via getWithRetry. Safe for TripleSeat's rate limits.
 async function fetchAll(endpoint, params = {}) {
   const token   = await getToken();
   const headers = { Authorization: `Bearer ${token}` };
@@ -75,9 +74,9 @@ async function fetchAll(endpoint, params = {}) {
   console.log(`  ${endpoint}: ${totalPages} page(s)…`);
 
   for (let p = 2; p <= totalPages; p++) {
-    await sleep(350); // ~3 req/s — well within TripleSeat's limit
+    await sleep(600); // ~1.6 req/s — conservative to avoid rate limits
     results = results.concat(await get(p));
-    if (p % 20 === 0) console.log(`    ${endpoint}: page ${p}/${totalPages}`);
+    if (p % 10 === 0) console.log(`    ${endpoint}: page ${p}/${totalPages}`);
   }
   return results;
 }
@@ -96,13 +95,17 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('🔄 Fetching TripleSeat data (sequential to respect rate limits)…');
+  // Only fetch data from START_YEAR onwards to limit page count.
+  // Adjust START_YEAR if you need older historical data.
+  const START_YEAR = process.env.DATA_START_YEAR || '2023';
+  const startDate  = `${START_YEAR}-01-01`;
+  console.log(`🔄 Fetching TripleSeat data from ${startDate} onwards…`);
   const t0 = Date.now();
 
-  // Fetch sequentially — max 3 concurrent requests at any time
-  const eventsRaw   = await fetchAll('events', { show_financial: true });
-  const leadsRaw    = await fetchAll('leads');
-  const bookingsRaw = await fetchAll('bookings');
+  // Fetch sequentially, one page at a time, with date filters to limit volume
+  const eventsRaw   = await fetchAll('events',   { show_financial: true, start_date: startDate });
+  const leadsRaw    = await fetchAll('leads',     { start_date: startDate });
+  const bookingsRaw = await fetchAll('bookings',  { start_date: startDate });
 
   console.log(`✅ ${eventsRaw.length} events, ${leadsRaw.length} leads, ${bookingsRaw.length} bookings in ${Math.round((Date.now()-t0)/1000)}s`);
 

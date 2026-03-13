@@ -11,7 +11,7 @@ on:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: write
       pages: write
@@ -36,6 +36,7 @@ jobs:
           BUDGET_TARGETS_2025:      ${{ vars.BUDGET_TARGETS_2025 }}
           BUDGET_TARGETS_2026:      ${{ vars.BUDGET_TARGETS_2026 }}
           BUDGET_TARGETS_2027:      ${{ vars.BUDGET_TARGETS_2027 }}
+          DATA_START_YEAR:          ${{ vars.DATA_START_YEAR || '2023' }}
 
       - name: Commit updated data.json
         run: |
