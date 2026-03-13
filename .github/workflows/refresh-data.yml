@@ -2,7 +2,7 @@ name: Refresh TripleSeat Data
 
 on:
   schedule:
-    - cron: '0 */6 * * *'   # Every 6 hours (midnight, 6am, noon, 6pm UTC)
+    - cron: '0 8 * * *'     # Once daily at 8am UTC (data refresh takes ~50 min)
   workflow_dispatch:           # Manual trigger from the Actions tab
   push:
     branches: [main]
@@ -11,7 +11,7 @@ on:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 70
     permissions:
       contents: write
       pages: write
@@ -36,7 +36,7 @@ jobs:
           BUDGET_TARGETS_2025:      ${{ vars.BUDGET_TARGETS_2025 }}
           BUDGET_TARGETS_2026:      ${{ vars.BUDGET_TARGETS_2026 }}
           BUDGET_TARGETS_2027:      ${{ vars.BUDGET_TARGETS_2027 }}
-          DATA_START_YEAR:          ${{ vars.DATA_START_YEAR || '2023' }}
+          DATA_START_YEAR:          ${{ vars.DATA_START_YEAR || '2024' }}
 
       - name: Commit updated data.json
         run: |

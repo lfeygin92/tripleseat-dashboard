@@ -96,14 +96,14 @@ async function main() {
   }
 
   // Only fetch data from START_YEAR onwards to limit page count.
-  // TripleSeat uses event_start_date / event_end_date for event date filtering.
+  // TripleSeat accepts MM/DD/YYYY or ISO 8601 for date filters.
   // Adjust DATA_START_YEAR env var if you need older historical data.
   const START_YEAR = process.env.DATA_START_YEAR || '2024';
-  const startDate  = `${START_YEAR}-01-01`;  // ISO 8601 — accepted by TripleSeat
+  const startDate  = `01/01/${START_YEAR}`;  // MM/DD/YYYY format for TripleSeat
   console.log(`🔄 Fetching TripleSeat data from ${startDate} onwards…`);
   const t0 = Date.now();
 
-  // Fetch sequentially with correct TripleSeat date filter parameters
+  // Fetch sequentially with TripleSeat date filter parameters (MM/DD/YYYY format)
   const eventsRaw   = await fetchAll('events',   { show_financial: true, event_start_date: startDate });
   const leadsRaw    = await fetchAll('leads',     { event_start_date: startDate });
   const bookingsRaw = await fetchAll('bookings',  { event_start_date: startDate });
